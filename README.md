@@ -84,12 +84,36 @@ mouse-runner v0.1.0 · 1m0s~8m0s 사이 무작위 · 일정: 항상 · Ctrl+C로
 - 노트북 덮개를 닫거나 맥이 잠자기에 들어가면 자리 비움이 됩니다.
 - 10분 넘게 손을 뗀 채 확인할 때 **내 폰으로 Slack을 열면 안 됩니다.** 폰에서 여는 순간 폰 때문에 초록이 됩니다. 동료에게 봐 달라고 하세요.
 
-## 직접 빌드
+## 다른 맥에서 직접 빌드해서 실행하기
 
-Go 1.27과 Xcode Command Line Tools가 필요합니다.
+릴리스 파일을 받는 대신 그 맥에서 직접 빌드해도 됩니다. 그 맥에서 만든 파일이라 macOS가 막지 않으므로, 서명이나 `xattr` 명령이 필요 없습니다.
+
+저장소가 private이라, 그 맥에서 쓰는 GitHub 계정에 이 저장소 접근 권한이 있어야 합니다.
+
+```sh
+# 1. 준비 (처음 한 번만)
+xcode-select --install    # Xcode 명령줄 도구. 이미 있으면 "already installed"라고 나옵니다
+brew install go           # Homebrew가 없으면 https://go.dev/dl 에서 macOS용 설치 파일을 받으세요
+
+# 2. 소스 받기
+gh repo clone pajamasi726/mouse-runner    # gh가 없으면: git clone https://github.com/pajamasi726/mouse-runner.git
+cd mouse-runner
+
+# 3. 빌드 (./mouse-runner 파일이 생깁니다)
+make build
+
+# 4. 실행
+./mouse-runner -selftest
+./mouse-runner
+```
+
+- Go는 1.27 이상이 필요합니다. 설치된 Go가 더 낮은 버전이면, 빌드할 때 go가 필요한 버전을 알아서 내려받습니다.
+- 새 버전으로 바꿀 때는 저장소 폴더에서 `git pull && make build`를 실행합니다.
+- 처음 실행할 때 권한 안내가 나오면 위의 [권한](#권한)을 보세요.
+
+### 개발용 명령
 
 ```sh
 make test                  # vet + 단위 테스트
-make build                 # 이 맥용 ./mouse-runner
 make dist VERSION=v0.1.0   # 유니버설 바이너리 + 압축 파일 + 체크섬 (dist/)
 ```
