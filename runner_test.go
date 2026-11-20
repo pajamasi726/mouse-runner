@@ -1,10 +1,77 @@
 package main
 
 import (
+	"fmt"
 	"math/rand/v2"
+	"strings"
 	"testing"
 	"time"
 )
+
+func captureLogs(r *Runner) *[]string {
+	logs := []string{}
+	r.Logf = func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) }
+	return &logs
+}
+
+func countLogs(logs []string, sub string) int {
+	n := 0
+	for _, l := range logs {
+		if strings.Contains(l, sub) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestWarnsOnceWhenNudgesDoNotRegister(t *testing.T) {
+	start := at(25, 10, 0)
+	f := newFake(start)
+	f.ignore = true // 권한이 사라졌거나 화면이 잠겨 이벤트가 먹히지 않는 상황
+	r := newTestRunner(f, Schedule{})
+	logs := captureLogs(r)
+	simulate(r, f, start, 30*time.Minute, nil)
+	if n := countLogs(*logs, "먹히지 않습니다"); n != 1 {
+		t.Fatalf("got %d warnings, want exactly 1; logs=%q", n, *logs)
+	}
+	if n := countLogs(*logs, "입력 신호 보냄"); n != 1 {
+		t.Fatalf("got %d success logs, want only the one before detection; logs=%q", n, *logs)
+	}
+	if len(f.nudges) < 10 {
+		t.Fatalf("only %d nudge attempts; it should keep trying", len(f.nudges))
+	}
+}
+
+func TestNoFalseWarningAfterSystemSleep(t *testing.T) {
+	t0 := at(25, 10, 0)
+	f := newFake(t0.Add(-10 * time.Minute)) // 10분째 입력 없음 → 첫 Step에서 바로 이벤트
+	*f.now = t0
+	r := newTestRunner(f, Schedule{})
+	logs := captureLogs(r)
+	r.Step(t0)                     // 이벤트가 먹힘
+	*f.now = t0.Add(2 * time.Hour) // 2시간 잠자기 뒤, 입력 없이 깨어남
+	r.Step(*f.now)
+	if n := countLogs(*logs, "먹히지 않습니다"); n != 0 {
+		t.Fatalf("false warning after sleep: %q", *logs)
+	}
+}
+
+func TestLogsRecoveryWhenNudgesRegisterAgain(t *testing.T) {
+	start := at(25, 10, 0)
+	f := newFake(start)
+	f.ignore = true
+	r := newTestRunner(f, Schedule{})
+	logs := captureLogs(r)
+	simulate(r, f, start, 15*time.Minute, nil)
+	f.ignore = false // 잠금 해제 또는 권한 복구
+	simulate(r, f, *f.now, 15*time.Minute, nil)
+	if n := countLogs(*logs, "다시 먹힙니다"); n != 1 {
+		t.Fatalf("got %d recovery logs, want 1; logs=%q", n, *logs)
+	}
+	if n := countLogs(*logs, "입력 신호 보냄"); n < 2 {
+		t.Fatalf("success logs did not resume after recovery; logs=%q", *logs)
+	}
+}
 
 func newTestRunner(f *fakeInput, s Schedule) *Runner {
 	return &Runner{In: f, Sched: s, Min: time.Minute, Max: 8 * time.Minute,
